@@ -1,0 +1,19 @@
+{
+  "name": "LastElevator.Tests.PlayMode",
+  "rootNamespace": "LastElevator.Tests.PlayMode",
+  "references": [
+    "LastElevator.Runtime"
+  ],
+  "includePlatforms": [],
+  "excludePlatforms": [],
+  "allowUnsafeCode": false,
+  "overrideReferences": false,
+  "precompiledReferences": [],
+  "autoReferenced": false,
+  "defineConstraints": [],
+  "versionDefines": [],
+  "noEngineReferences": false,
+  "optionalUnityReferences": [
+    "TestAssemblies"
+  ]
+}

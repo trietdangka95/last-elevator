@@ -1,0 +1,18 @@
+{
+  "name": "LastElevator.Editor",
+  "rootNamespace": "LastElevator.Editor",
+  "references": [
+    "LastElevator.Runtime"
+  ],
+  "includePlatforms": [
+    "Editor"
+  ],
+  "excludePlatforms": [],
+  "allowUnsafeCode": false,
+  "overrideReferences": false,
+  "precompiledReferences": [],
+  "autoReferenced": true,
+  "defineConstraints": [],
+  "versionDefines": [],
+  "noEngineReferences": false
+}
