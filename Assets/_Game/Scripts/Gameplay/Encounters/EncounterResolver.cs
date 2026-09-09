@@ -3,16 +3,24 @@ using System.Collections.Generic;
 using LastElevator.Core.Random;
 using LastElevator.Core.State;
 using LastElevator.Gameplay.Run;
+using LastElevator.Gameplay.Survivors;
 
 namespace LastElevator.Gameplay.Encounters
 {
     public sealed class EncounterResolver
     {
         private readonly IRandomService _random;
+        private readonly SurvivorRoster _roster;
 
         public EncounterResolver(IRandomService random)
+            : this(random, null)
+        {
+        }
+
+        public EncounterResolver(IRandomService random, SurvivorRoster roster)
         {
             _random = random ?? throw new ArgumentNullException(nameof(random));
+            _roster = roster;
         }
 
         public bool CanChoose(RunState state, EncounterChoiceData choice)
@@ -62,7 +70,33 @@ namespace LastElevator.Gameplay.Encounters
             }
 
             bool succeeded = RollSuccess(choice.successChance);
-            ApplyEffects(state, succeeded ? choice.successEffects : choice.failureEffects);
+            IReadOnlyList<EffectData> selectedEffects = succeeded
+                ? choice.successEffects
+                : choice.failureEffects;
+            SurvivorDefinition survivor = FindSurvivorEffect(selectedEffects);
+
+            if (survivor != null)
+            {
+                SurvivorRecruitmentStatus recruitment = _roster.TryRecruit(state, survivor);
+
+                if (recruitment == SurvivorRecruitmentStatus.ReplacementRequired)
+                {
+                    return new EncounterResolution(
+                        EncounterResolutionStatus.SurvivorReplacementRequired,
+                        encounter.id,
+                        choiceIndex,
+                        succeeded,
+                        _roster.GetDefinition(survivor.id),
+                        selectedEffects);
+                }
+
+                if (recruitment == SurvivorRecruitmentStatus.InvalidSurvivor)
+                {
+                    return CreateFailure(EncounterResolutionStatus.InvalidEffect, encounter, choiceIndex);
+                }
+            }
+
+            ApplyNonSurvivorEffects(state, selectedEffects);
             RecordResolvedEncounter(state, encounter.id);
 
             return new EncounterResolution(
@@ -72,7 +106,45 @@ namespace LastElevator.Gameplay.Encounters
                 succeeded);
         }
 
-        private static EncounterResolutionStatus EvaluateConditions(
+        public EncounterResolution CompleteSurvivorReplacement(
+            RunState state,
+            EncounterResolution pendingResolution,
+            string survivorIdToRemove)
+        {
+            if (state == null)
+            {
+                throw new ArgumentNullException(nameof(state));
+            }
+
+            if (_roster == null || pendingResolution == null ||
+                !pendingResolution.RequiresSurvivorReplacement ||
+                pendingResolution.PendingSurvivor == null ||
+                pendingResolution.DeferredEffects == null)
+            {
+                return CreateReplacementFailure(pendingResolution);
+            }
+
+            bool isRefusal = string.IsNullOrWhiteSpace(survivorIdToRemove);
+
+            if (!isRefusal && !_roster.TryReplace(
+                    state,
+                    survivorIdToRemove,
+                    pendingResolution.PendingSurvivor))
+            {
+                return CreateReplacementFailure(pendingResolution);
+            }
+
+            ApplyNonSurvivorEffects(state, pendingResolution.DeferredEffects);
+            RecordResolvedEncounter(state, pendingResolution.EncounterId);
+
+            return new EncounterResolution(
+                EncounterResolutionStatus.Resolved,
+                pendingResolution.EncounterId,
+                pendingResolution.ChoiceIndex,
+                pendingResolution.Succeeded);
+        }
+
+        private EncounterResolutionStatus EvaluateConditions(
             RunState state,
             EncounterChoiceData choice)
         {
@@ -135,7 +207,31 @@ namespace LastElevator.Gameplay.Encounters
 
                         break;
                     case ConditionType.MinTeamPower:
+                        if (_roster == null)
+                        {
+                            return EncounterResolutionStatus.UnsupportedCondition;
+                        }
+
+                        if (_roster.GetTotalPower(state) < condition.intValue)
+                        {
+                            return EncounterResolutionStatus.ConditionsNotMet;
+                        }
+
+                        break;
                     case ConditionType.HasRole:
+                        if (_roster == null ||
+                            !Enum.TryParse(condition.stringValue, true, out SurvivorRole role) ||
+                            !Enum.IsDefined(typeof(SurvivorRole), role))
+                        {
+                            return EncounterResolutionStatus.UnsupportedCondition;
+                        }
+
+                        if (!_roster.HasRole(state, role))
+                        {
+                            return EncounterResolutionStatus.ConditionsNotMet;
+                        }
+
+                        break;
                     default:
                         return EncounterResolutionStatus.UnsupportedCondition;
                 }
@@ -144,12 +240,14 @@ namespace LastElevator.Gameplay.Encounters
             return EncounterResolutionStatus.Resolved;
         }
 
-        private static EncounterResolutionStatus ValidateEffects(IReadOnlyList<EffectData> effects)
+        private EncounterResolutionStatus ValidateEffects(IReadOnlyList<EffectData> effects)
         {
             if (effects == null)
             {
                 return EncounterResolutionStatus.Resolved;
             }
+
+            bool hasSurvivorEffect = false;
 
             for (int i = 0; i < effects.Count; i++)
             {
@@ -182,6 +280,14 @@ namespace LastElevator.Gameplay.Encounters
 
                         break;
                     case EffectType.AddSurvivor:
+                        if (hasSurvivorEffect || _roster == null || effect.survivor == null ||
+                            _roster.GetDefinition(effect.survivor.id) == null)
+                        {
+                            return EncounterResolutionStatus.InvalidEffect;
+                        }
+
+                        hasSurvivorEffect = true;
+                        break;
                     case EffectType.StartCombat:
                     default:
                         return EncounterResolutionStatus.UnsupportedEffect;
@@ -206,7 +312,27 @@ namespace LastElevator.Gameplay.Encounters
             return _random.Value() < successChance;
         }
 
-        private static void ApplyEffects(RunState state, IReadOnlyList<EffectData> effects)
+        private static SurvivorDefinition FindSurvivorEffect(IReadOnlyList<EffectData> effects)
+        {
+            if (effects == null)
+            {
+                return null;
+            }
+
+            for (int i = 0; i < effects.Count; i++)
+            {
+                if (effects[i].type == EffectType.AddSurvivor)
+                {
+                    return effects[i].survivor;
+                }
+            }
+
+            return null;
+        }
+
+        private static void ApplyNonSurvivorEffects(
+            RunState state,
+            IReadOnlyList<EffectData> effects)
         {
             if (effects == null)
             {
@@ -220,6 +346,7 @@ namespace LastElevator.Gameplay.Encounters
                 switch (effect.type)
                 {
                     case EffectType.None:
+                    case EffectType.AddSurvivor:
                         break;
                     case EffectType.AddEnergy:
                         RunRules.ChangeEnergy(state, effect.intValue);
@@ -258,7 +385,21 @@ namespace LastElevator.Gameplay.Encounters
             EncounterDefinition encounter,
             int choiceIndex)
         {
-            return new EncounterResolution(status, encounter == null ? null : encounter.id, choiceIndex, false);
+            return new EncounterResolution(
+                status,
+                encounter == null ? null : encounter.id,
+                choiceIndex,
+                false);
+        }
+
+        private static EncounterResolution CreateReplacementFailure(
+            EncounterResolution pendingResolution)
+        {
+            return new EncounterResolution(
+                EncounterResolutionStatus.InvalidSurvivorReplacement,
+                pendingResolution == null ? null : pendingResolution.EncounterId,
+                pendingResolution == null ? -1 : pendingResolution.ChoiceIndex,
+                pendingResolution != null && pendingResolution.Succeeded);
         }
     }
 }

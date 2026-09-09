@@ -1,4 +1,5 @@
 using System;
+using LastElevator.Gameplay.Survivors;
 
 namespace LastElevator.Gameplay.Encounters
 {
@@ -8,5 +9,6 @@ namespace LastElevator.Gameplay.Encounters
         public EffectType type;
         public int intValue;
         public string stringValue;
+        public SurvivorDefinition survivor;
     }
 }

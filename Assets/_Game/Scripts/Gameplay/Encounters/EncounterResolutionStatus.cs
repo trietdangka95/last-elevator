@@ -6,6 +6,8 @@ namespace LastElevator.Gameplay.Encounters
         InvalidEncounter,
         InvalidChoice,
         ConditionsNotMet,
+        SurvivorReplacementRequired,
+        InvalidSurvivorReplacement,
         UnsupportedCondition,
         InvalidEffect,
         UnsupportedEffect
