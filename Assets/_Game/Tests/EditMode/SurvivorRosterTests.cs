@@ -105,6 +105,9 @@ namespace LastElevator.Tests.EditMode
 
             Assert.That(roster.GetTotalPower(state), Is.EqualTo(4));
             Assert.That(roster.GetTravelEnergyReduction(state), Is.EqualTo(1));
+            Assert.That(
+                RunRules.GetTravelEnergyCost(state, 2, roster.GetTravelEnergyReduction(state)),
+                Is.EqualTo(3));
             Assert.That(roster.HasRole(state, SurvivorRole.Medic), Is.True);
             Assert.That(roster.HasRole(state, SurvivorRole.Guard), Is.False);
         }

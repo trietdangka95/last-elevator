@@ -5,6 +5,7 @@ using LastElevator.Core.State;
 using LastElevator.Data.Definitions;
 using LastElevator.Gameplay.Encounters;
 using LastElevator.Gameplay.Run;
+using LastElevator.Gameplay.Survivors;
 
 namespace LastElevator.Gameplay.Floor
 {
@@ -20,9 +21,10 @@ namespace LastElevator.Gameplay.Floor
         private readonly IReadOnlyList<EncounterDefinition> _encounters;
         private readonly IRandomService _random;
         private readonly IReadOnlyList<EncounterCategory> _regularCategories;
+        private readonly SurvivorRoster _roster;
 
         public FloorGenerator(IRandomService random, FloorGenerationConfig config)
-            : this(random, config, null)
+            : this(random, config, null, null)
         {
         }
 
@@ -30,10 +32,20 @@ namespace LastElevator.Gameplay.Floor
             IRandomService random,
             FloorGenerationConfig config,
             IReadOnlyList<EncounterDefinition> encounters)
+            : this(random, config, encounters, null)
+        {
+        }
+
+        public FloorGenerator(
+            IRandomService random,
+            FloorGenerationConfig config,
+            IReadOnlyList<EncounterDefinition> encounters,
+            SurvivorRoster roster)
         {
             _random = random ?? throw new ArgumentNullException(nameof(random));
             _config = config ?? throw new ArgumentNullException(nameof(config));
             _encounters = encounters;
+            _roster = roster;
             _regularCategories = new[]
             {
                 EncounterCategory.Survivor,
@@ -72,17 +84,23 @@ namespace LastElevator.Gameplay.Floor
             var unusedEncounters = _encounters == null
                 ? null
                 : new List<EncounterDefinition>(_encounters);
+            int passiveTravelReduction = _roster == null
+                ? 0
+                : _roster.GetTravelEnergyReduction(state);
 
             for (int targetFloor = state.currentFloor + 1; targetFloor <= lastCandidateFloor; targetFloor++)
             {
                 int distance = targetFloor - state.currentFloor;
 
-                if (!RunRules.CanReachFloor(state, distance))
+                if (!RunRules.CanReachFloor(state, distance, passiveTravelReduction))
                 {
                     break;
                 }
 
-                int energyCost = RunRules.GetTravelEnergyCost(state, distance);
+                int energyCost = RunRules.GetTravelEnergyCost(
+                    state,
+                    distance,
+                    passiveTravelReduction);
                 FloorBand band = GetBand(targetFloor);
                 EncounterCategory category = GetSignalCategory(band, unusedCategories);
                 EncounterDefinition encounter = GetEncounter(category, targetFloor, unusedEncounters);

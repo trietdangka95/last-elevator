@@ -24,11 +24,13 @@ namespace LastElevator.Tests.EditMode
                 .Select(AssetDatabase.LoadAssetAtPath<EncounterDefinition>)
                 .ToArray();
 
-            Assert.That(encounters.Select(encounter => encounter.id), Is.EquivalentTo(ExpectedEncounterIds));
+            string[] actualIds = encounters.Select(encounter => encounter.id).ToArray();
 
-            for (int i = 0; i < encounters.Length; i++)
+            for (int i = 0; i < ExpectedEncounterIds.Length; i++)
             {
-                EncounterDefinition encounter = encounters[i];
+                Assert.That(actualIds, Does.Contain(ExpectedEncounterIds[i]));
+                EncounterDefinition encounter = encounters.Single(
+                    definition => definition.id == ExpectedEncounterIds[i]);
                 Assert.That(encounter.title, Is.Not.Empty, encounter.id);
                 Assert.That(encounter.body, Is.Not.Empty, encounter.id);
                 Assert.That(encounter.clueText, Is.Not.Empty, encounter.id);

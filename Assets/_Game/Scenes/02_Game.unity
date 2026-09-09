@@ -50,6 +50,12 @@ MonoBehaviour:
   - {fileID: 11400000, guid: d0500000000000000000000000000202, type: 2}
   - {fileID: 11400000, guid: d0500000000000000000000000000203, type: 2}
   - {fileID: 11400000, guid: d0500000000000000000000000000204, type: 2}
+  - {fileID: 11400000, guid: d0600000000000000000000000000301, type: 2}
+  _survivors:
+  - {fileID: 11400000, guid: d0600000000000000000000000000201, type: 2}
+  - {fileID: 11400000, guid: d0600000000000000000000000000202, type: 2}
+  - {fileID: 11400000, guid: d0600000000000000000000000000203, type: 2}
+  - {fileID: 11400000, guid: d0600000000000000000000000000204, type: 2}
   _travelDurationSeconds: 0.65
 --- !u!1 &3000
 GameObject:
@@ -64,6 +70,7 @@ GameObject:
   - component: {fileID: 3003}
   - component: {fileID: 3004}
   - component: {fileID: 3005}
+  - component: {fileID: 3006}
   m_Layer: 0
   m_Name: GameUI
   m_TagString: Untagged
@@ -137,6 +144,19 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: d0500000000000000000000000000013, type: 3}
   m_Name:
   m_EditorClassIdentifier: LastElevator.Runtime::LastElevator.UI.Encounter.EncounterView
+  _controller: {fileID: 1002}
+--- !u!114 &3006
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 3000}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: d0600000000000000000000000000013, type: 3}
+  m_Name:
+  m_EditorClassIdentifier: LastElevator.Runtime::LastElevator.UI.Roster.RosterReplaceView
   _controller: {fileID: 1002}
 --- !u!1 &2000
 GameObject:

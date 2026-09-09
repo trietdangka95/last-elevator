@@ -31,6 +31,14 @@ namespace LastElevator.Gameplay.Run
 
         public static int GetTravelEnergyCost(RunState state, int distance)
         {
+            return GetTravelEnergyCost(state, distance, 0);
+        }
+
+        public static int GetTravelEnergyCost(
+            RunState state,
+            int distance,
+            int additionalReduction)
+        {
             ValidateState(state);
 
             if (distance < 1)
@@ -38,7 +46,8 @@ namespace LastElevator.Gameplay.Run
                 throw new ArgumentOutOfRangeException(nameof(distance), distance, "Travel distance must be positive.");
             }
 
-            int reduction = Math.Max(0, state.travelEnergyReduction);
+            long reduction = (long)Math.Max(0, state.travelEnergyReduction) +
+                Math.Max(0, additionalReduction);
             long cost = ((long)distance * EnergyPerFloor) - reduction;
 
             return (int)Math.Min(int.MaxValue, Math.Max(MinimumTravelEnergyCost, cost));
@@ -46,7 +55,15 @@ namespace LastElevator.Gameplay.Run
 
         public static bool TrySpendTravelEnergy(RunState state, int distance)
         {
-            int cost = GetTravelEnergyCost(state, distance);
+            return TrySpendTravelEnergy(state, distance, 0);
+        }
+
+        public static bool TrySpendTravelEnergy(
+            RunState state,
+            int distance,
+            int additionalReduction)
+        {
+            int cost = GetTravelEnergyCost(state, distance, additionalReduction);
 
             if (state.energy < cost)
             {
@@ -59,7 +76,15 @@ namespace LastElevator.Gameplay.Run
 
         public static bool CanReachFloor(RunState state, int distance)
         {
-            int cost = GetTravelEnergyCost(state, distance);
+            return CanReachFloor(state, distance, 0);
+        }
+
+        public static bool CanReachFloor(
+            RunState state,
+            int distance,
+            int additionalReduction)
+        {
+            int cost = GetTravelEnergyCost(state, distance, additionalReduction);
             return state.energy >= cost;
         }
 

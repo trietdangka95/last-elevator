@@ -6,6 +6,7 @@ using LastElevator.Core.State;
 using LastElevator.Data.Definitions;
 using LastElevator.Gameplay.Encounters;
 using LastElevator.Gameplay.Floor;
+using LastElevator.Gameplay.Survivors;
 using UnityEngine;
 
 namespace LastElevator.Gameplay.Run
@@ -17,6 +18,7 @@ namespace LastElevator.Gameplay.Run
 
         [SerializeField] private BalanceConfig _balanceConfig;
         [SerializeField] private List<EncounterDefinition> _encounters = new List<EncounterDefinition>();
+        [SerializeField] private List<SurvivorDefinition> _survivors = new List<SurvivorDefinition>();
         [SerializeField, Min(0f)] private float _travelDurationSeconds = DefaultTravelDurationSeconds;
 
         private EncounterDefinition _currentEncounter;
@@ -25,6 +27,8 @@ namespace LastElevator.Gameplay.Run
         private FloorGenerator _floorGenerator;
         private RunPhase _phase;
         private RunState _state;
+        private SurvivorRoster _survivorRoster;
+        private EncounterResolution _pendingSurvivorResolution;
         private Coroutine _travelRoutine;
         private EncounterDefinition _travelEncounter;
         private int _travelTargetFloor;
@@ -53,13 +57,19 @@ namespace LastElevator.Gameplay.Run
             _state.currentFloor = StartingFloor;
             _phase = RunPhase.ChoosingFloor;
             _currentEncounter = null;
+            _pendingSurvivorResolution = null;
             _travelEncounter = null;
             _travelTargetFloor = 0;
 
             FloorGenerationConfig floorConfig = GetFloorGenerationConfig();
             var random = new SeededRandomService(resolvedSeed);
-            _encounterResolver = new EncounterResolver(random);
-            _floorGenerator = new FloorGenerator(random, floorConfig, GetEncounterDefinitions());
+            _survivorRoster = new SurvivorRoster(GetSurvivorDefinitions());
+            _encounterResolver = new EncounterResolver(random, _survivorRoster);
+            _floorGenerator = new FloorGenerator(
+                random,
+                floorConfig,
+                GetEncounterDefinitions(),
+                _survivorRoster);
             _floorCandidates = _floorGenerator.GenerateCandidates(_state);
             PublishView();
         }
@@ -80,7 +90,12 @@ namespace LastElevator.Gameplay.Run
                 return;
             }
 
-            if (!RunRules.TrySpendTravelEnergy(_state, selected.Distance))
+            int passiveTravelReduction = _survivorRoster.GetTravelEnergyReduction(_state);
+
+            if (!RunRules.TrySpendTravelEnergy(
+                    _state,
+                    selected.Distance,
+                    passiveTravelReduction))
             {
                 LogIgnoredChoice($"Ignored unaffordable floor choice {floor}.");
                 return;
@@ -125,6 +140,14 @@ namespace LastElevator.Gameplay.Run
                 _currentEncounter,
                 optionIndex);
 
+            if (resolution.RequiresSurvivorReplacement)
+            {
+                _pendingSurvivorResolution = resolution;
+                _phase = RunPhase.ReplacingSurvivor;
+                PublishView();
+                return;
+            }
+
             if (!resolution.IsResolved)
             {
                 _phase = RunPhase.Encounter;
@@ -133,11 +156,30 @@ namespace LastElevator.Gameplay.Run
                 return;
             }
 
-            _currentEncounter = null;
-            _phase = RunPhase.ChoosingFloor;
-            _floorCandidates = _floorGenerator.GenerateCandidates(_state);
-            PublishView();
-            EncounterResolved?.Invoke(resolution);
+            CompleteEncounter(resolution);
+        }
+
+        public void ChooseSurvivorReplacement(string survivorIdToRemove)
+        {
+            if (_phase != RunPhase.ReplacingSurvivor)
+            {
+                LogIgnoredChoice($"Ignored survivor replacement while phase is {_phase}.");
+                return;
+            }
+
+            EncounterResolution resolution = _encounterResolver.CompleteSurvivorReplacement(
+                _state,
+                _pendingSurvivorResolution,
+                survivorIdToRemove);
+
+            if (!resolution.IsResolved)
+            {
+                LogIgnoredChoice($"Ignored survivor replacement: {resolution.Status}.");
+                return;
+            }
+
+            _pendingSurvivorResolution = null;
+            CompleteEncounter(resolution);
         }
 
         private FloorCandidate FindCandidate(int floor)
@@ -180,6 +222,25 @@ namespace LastElevator.Gameplay.Run
             return _encounters;
         }
 
+        private IReadOnlyList<SurvivorDefinition> GetSurvivorDefinitions()
+        {
+            if (_survivors == null || _survivors.Count == 0)
+            {
+                throw new InvalidOperationException("RunController requires SurvivorDefinition references.");
+            }
+
+            return _survivors;
+        }
+
+        private void CompleteEncounter(EncounterResolution resolution)
+        {
+            _currentEncounter = null;
+            _phase = RunPhase.ChoosingFloor;
+            _floorCandidates = _floorGenerator.GenerateCandidates(_state);
+            PublishView();
+            EncounterResolved?.Invoke(resolution);
+        }
+
         private void PublishView()
         {
             EncounterViewModel encounterView = _currentEncounter == null
@@ -190,7 +251,11 @@ namespace LastElevator.Gameplay.Run
                 _phase,
                 _travelTargetFloor,
                 _floorCandidates,
-                encounterView);
+                encounterView,
+                _survivorRoster,
+                _pendingSurvivorResolution == null
+                    ? null
+                    : _pendingSurvivorResolution.PendingSurvivor);
             RunStateChanged?.Invoke(CurrentView);
         }
 

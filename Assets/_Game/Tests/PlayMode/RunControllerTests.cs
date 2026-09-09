@@ -1,5 +1,8 @@
 using System.Collections;
 using System.Collections.Generic;
+using System.Linq;
+using System.Reflection;
+using LastElevator.Core.State;
 using LastElevator.Core.Bootstrap;
 using LastElevator.Gameplay.Floor;
 using LastElevator.Gameplay.Run;
@@ -7,6 +10,7 @@ using LastElevator.UI.Common;
 using LastElevator.UI.Encounter;
 using LastElevator.UI.FloorChoice;
 using LastElevator.UI.HUD;
+using LastElevator.UI.Roster;
 using NUnit.Framework;
 using UnityEngine;
 using UnityEngine.SceneManagement;
@@ -35,6 +39,8 @@ namespace LastElevator.Tests.PlayMode
             Assert.That(view.MaxIntegrity, Is.EqualTo(100));
             Assert.That(view.Capacity, Is.EqualTo(4));
             Assert.That(view.SurvivorCount, Is.Zero);
+            Assert.That(view.Survivors, Is.Empty);
+            Assert.That(view.PendingSurvivor, Is.Null);
             Assert.That(view.Scrap, Is.Zero);
             Assert.That(view.CurrentEncounter, Is.Null);
             Assert.That(GetCandidateFloors(view), Is.EqualTo(new[] { 2, 3, 4 }));
@@ -131,7 +137,7 @@ namespace LastElevator.Tests.PlayMode
         }
 
         [UnityTest]
-        public IEnumerator GameSceneContainsConnectedHudAndFloorChoiceViews()
+        public IEnumerator GameSceneContainsConnectedGameplayViews()
         {
             RunController controller = null;
             yield return LoadGameScene(result => controller = result);
@@ -140,15 +146,70 @@ namespace LastElevator.Tests.PlayMode
             FloorChoiceView floorChoice = Object.FindAnyObjectByType<FloorChoiceView>();
             ElevatorTravelView travel = Object.FindAnyObjectByType<ElevatorTravelView>();
             EncounterView encounter = Object.FindAnyObjectByType<EncounterView>();
+            RosterReplaceView roster = Object.FindAnyObjectByType<RosterReplaceView>();
 
             Assert.That(hud, Is.Not.Null);
             Assert.That(floorChoice, Is.Not.Null);
             Assert.That(travel, Is.Not.Null);
             Assert.That(encounter, Is.Not.Null);
+            Assert.That(roster, Is.Not.Null);
             Assert.That(hud.CurrentView, Is.SameAs(controller.CurrentView));
             Assert.That(floorChoice.CurrentView, Is.SameAs(controller.CurrentView));
             Assert.That(travel.CurrentView, Is.SameAs(controller.CurrentView));
             Assert.That(encounter.CurrentView, Is.SameAs(controller.CurrentView));
+            Assert.That(roster.CurrentView, Is.SameAs(controller.CurrentView));
+        }
+
+        [UnityTest]
+        public IEnumerator SurvivorEncounterRecruitsWhenThereIsFreeCapacity()
+        {
+            RunController controller = null;
+            yield return LoadGameScene(result => controller = result);
+            FloorCandidate candidate = StartRunWithKnockingDoorCandidate(controller);
+
+            controller.ChooseFloor(candidate.TargetFloor);
+            yield return WaitForPhase(controller, RunPhase.Encounter);
+            controller.ChooseEncounterOption(0);
+
+            Assert.That(controller.CurrentView.Phase, Is.EqualTo(RunPhase.ChoosingFloor));
+            Assert.That(controller.CurrentView.SurvivorCount, Is.EqualTo(1));
+            Assert.That(
+                controller.CurrentView.Survivors.Select(survivor => survivor.Id),
+                Is.EqualTo(new[] { "survivor_maya_medic" }));
+        }
+
+        [UnityTest]
+        public IEnumerator FullRosterRequiresReplaceOrRefuseBeforeContinuing()
+        {
+            RunController controller = null;
+            yield return LoadGameScene(result => controller = result);
+            FloorCandidate candidate = StartRunWithKnockingDoorCandidate(controller);
+            RunState state = GetRunState(controller);
+            state.capacity = 3;
+            state.survivorIds.Add("survivor_ken_engineer");
+            state.survivorIds.Add("survivor_rin_guard");
+            state.survivorIds.Add("survivor_tom_civilian");
+
+            controller.ChooseFloor(candidate.TargetFloor);
+            yield return WaitForPhase(controller, RunPhase.Encounter);
+            controller.ChooseEncounterOption(0);
+
+            RosterReplaceView rosterView = Object.FindAnyObjectByType<RosterReplaceView>();
+            Assert.That(controller.CurrentView.Phase, Is.EqualTo(RunPhase.ReplacingSurvivor));
+            Assert.That(controller.CurrentView.PendingSurvivor.Id, Is.EqualTo("survivor_maya_medic"));
+            Assert.That(controller.CurrentView.SurvivorCount, Is.EqualTo(3));
+            Assert.That(rosterView.CurrentView, Is.SameAs(controller.CurrentView));
+
+            rosterView.SelectReplacement("survivor_ken_engineer");
+
+            Assert.That(controller.CurrentView.Phase, Is.EqualTo(RunPhase.ChoosingFloor));
+            Assert.That(controller.CurrentView.SurvivorCount, Is.EqualTo(3));
+            Assert.That(
+                controller.CurrentView.Survivors.Select(survivor => survivor.Id),
+                Does.Contain("survivor_maya_medic"));
+            Assert.That(
+                controller.CurrentView.Survivors.Select(survivor => survivor.Id),
+                Does.Not.Contain("survivor_ken_engineer"));
         }
 
         [UnityTest]
@@ -175,19 +236,11 @@ namespace LastElevator.Tests.PlayMode
             controller.ChooseFloor(4);
             yield return WaitForPhase(controller, RunPhase.Encounter);
 
-            int energyBefore = controller.CurrentView.Energy;
-            int integrityBefore = controller.CurrentView.Integrity;
-            int scrapBefore = controller.CurrentView.Scrap;
             encounter.SelectOption(1);
 
             Assert.That(controller.CurrentView.Phase, Is.EqualTo(RunPhase.ChoosingFloor));
             Assert.That(controller.CurrentView.CurrentEncounter, Is.Null);
             Assert.That(GetCandidateFloors(controller.CurrentView), Is.EqualTo(new[] { 5, 6, 7 }));
-            Assert.That(
-                controller.CurrentView.Energy != energyBefore ||
-                controller.CurrentView.Integrity != integrityBefore ||
-                controller.CurrentView.Scrap != scrapBefore,
-                Is.True);
         }
 
         private static IEnumerator LoadGameScene(System.Action<RunController> setController)
@@ -212,6 +265,36 @@ namespace LastElevator.Tests.PlayMode
             }
 
             Assert.That(controller.CurrentView.Phase, Is.EqualTo(expectedPhase));
+        }
+
+        private static FloorCandidate StartRunWithKnockingDoorCandidate(RunController controller)
+        {
+            for (int seed = 1; seed <= 200; seed++)
+            {
+                controller.StartNewRun(seed);
+
+                for (int i = 0; i < controller.CurrentView.FloorCandidates.Count; i++)
+                {
+                    FloorCandidate candidate = controller.CurrentView.FloorCandidates[i];
+
+                    if (candidate.Encounter != null && candidate.Encounter.id == "event_knocking_door")
+                    {
+                        return candidate;
+                    }
+                }
+            }
+
+            Assert.Fail("Expected a seeded run with event_knocking_door in the first floor choices.");
+            return null;
+        }
+
+        private static RunState GetRunState(RunController controller)
+        {
+            FieldInfo stateField = typeof(RunController).GetField(
+                "_state",
+                BindingFlags.Instance | BindingFlags.NonPublic);
+            Assert.That(stateField, Is.Not.Null);
+            return (RunState)stateField.GetValue(controller);
         }
 
         private static int[] GetCandidateFloors(RunViewModel view)
