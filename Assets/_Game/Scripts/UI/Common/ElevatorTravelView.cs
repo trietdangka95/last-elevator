@@ -45,6 +45,12 @@ namespace LastElevator.UI.Common
                 return;
             }
 
+            if (CurrentView.Phase == RunPhase.Encounter ||
+                CurrentView.Phase == RunPhase.Resolving)
+            {
+                return;
+            }
+
             EnsureStyles();
 
             float elevatorWidth = Screen.width * 0.72f;

@@ -1,6 +1,7 @@
 using System;
 using System.Collections.Generic;
 using LastElevator.Core.State;
+using LastElevator.Gameplay.Encounters;
 using LastElevator.Gameplay.Floor;
 
 namespace LastElevator.Gameplay.Run
@@ -11,7 +12,8 @@ namespace LastElevator.Gameplay.Run
             RunState state,
             RunPhase phase,
             int travelTargetFloor,
-            IReadOnlyList<FloorCandidate> floorCandidates)
+            IReadOnlyList<FloorCandidate> floorCandidates,
+            EncounterViewModel currentEncounter)
         {
             if (state == null)
             {
@@ -29,6 +31,7 @@ namespace LastElevator.Gameplay.Run
             Phase = phase;
             TravelTargetFloor = travelTargetFloor;
             FloorCandidates = floorCandidates ?? Array.Empty<FloorCandidate>();
+            CurrentEncounter = currentEncounter;
         }
 
         public int CurrentFloor { get; }
@@ -52,5 +55,7 @@ namespace LastElevator.Gameplay.Run
         public int TravelTargetFloor { get; }
 
         public IReadOnlyList<FloorCandidate> FloorCandidates { get; }
+
+        public EncounterViewModel CurrentEncounter { get; }
     }
 }

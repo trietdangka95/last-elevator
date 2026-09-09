@@ -4,6 +4,7 @@ using LastElevator.Core.Bootstrap;
 using LastElevator.Gameplay.Floor;
 using LastElevator.Gameplay.Run;
 using LastElevator.UI.Common;
+using LastElevator.UI.Encounter;
 using LastElevator.UI.FloorChoice;
 using LastElevator.UI.HUD;
 using NUnit.Framework;
@@ -35,6 +36,7 @@ namespace LastElevator.Tests.PlayMode
             Assert.That(view.Capacity, Is.EqualTo(4));
             Assert.That(view.SurvivorCount, Is.Zero);
             Assert.That(view.Scrap, Is.Zero);
+            Assert.That(view.CurrentEncounter, Is.Null);
             Assert.That(GetCandidateFloors(view), Is.EqualTo(new[] { 2, 3, 4 }));
         }
 
@@ -83,18 +85,20 @@ namespace LastElevator.Tests.PlayMode
         }
 
         [UnityTest]
-        public IEnumerator TravelCompletesAndPublishesNextCandidates()
+        public IEnumerator TravelCompletesAndOpensEncounter()
         {
             RunController controller = null;
             yield return LoadGameScene(result => controller = result);
 
             controller.ChooseFloor(4);
-            yield return WaitForChoosingFloor(controller);
+            yield return WaitForPhase(controller, RunPhase.Encounter);
 
             Assert.That(controller.CurrentView.CurrentFloor, Is.EqualTo(4));
             Assert.That(controller.CurrentView.Energy, Is.EqualTo(69));
             Assert.That(controller.CurrentView.TravelTargetFloor, Is.Zero);
-            Assert.That(GetCandidateFloors(controller.CurrentView), Is.EqualTo(new[] { 5, 6, 7 }));
+            Assert.That(controller.CurrentView.FloorCandidates, Is.Empty);
+            Assert.That(controller.CurrentView.CurrentEncounter, Is.Not.Null);
+            Assert.That(controller.CurrentView.CurrentEncounter.Choices.Count, Is.GreaterThanOrEqualTo(2));
         }
 
         [UnityTest]
@@ -112,7 +116,9 @@ namespace LastElevator.Tests.PlayMode
                 Assert.That(candidates, Is.Not.Empty);
 
                 floorChoice.SelectFloor(candidates[candidates.Count - 1].TargetFloor);
-                yield return WaitForChoosingFloor(controller);
+                yield return WaitForPhase(controller, RunPhase.Encounter);
+                controller.ChooseEncounterOption(1);
+                yield return WaitForPhase(controller, RunPhase.ChoosingFloor);
 
                 moves++;
                 Assert.That(moves, Is.LessThan(20));
@@ -120,6 +126,7 @@ namespace LastElevator.Tests.PlayMode
 
             Assert.That(controller.CurrentView.CurrentFloor, Is.EqualTo(30));
             Assert.That(controller.CurrentView.Energy, Is.EqualTo(17));
+            Assert.That(controller.CurrentView.CurrentEncounter, Is.Null);
             Assert.That(controller.CurrentView.FloorCandidates, Is.Empty);
         }
 
@@ -132,13 +139,16 @@ namespace LastElevator.Tests.PlayMode
             RunHudView hud = Object.FindAnyObjectByType<RunHudView>();
             FloorChoiceView floorChoice = Object.FindAnyObjectByType<FloorChoiceView>();
             ElevatorTravelView travel = Object.FindAnyObjectByType<ElevatorTravelView>();
+            EncounterView encounter = Object.FindAnyObjectByType<EncounterView>();
 
             Assert.That(hud, Is.Not.Null);
             Assert.That(floorChoice, Is.Not.Null);
             Assert.That(travel, Is.Not.Null);
+            Assert.That(encounter, Is.Not.Null);
             Assert.That(hud.CurrentView, Is.SameAs(controller.CurrentView));
             Assert.That(floorChoice.CurrentView, Is.SameAs(controller.CurrentView));
             Assert.That(travel.CurrentView, Is.SameAs(controller.CurrentView));
+            Assert.That(encounter.CurrentView, Is.SameAs(controller.CurrentView));
         }
 
         [UnityTest]
@@ -155,6 +165,31 @@ namespace LastElevator.Tests.PlayMode
             Assert.That(floorChoice.CurrentView, Is.SameAs(controller.CurrentView));
         }
 
+        [UnityTest]
+        public IEnumerator EncounterViewSendsChoiceThroughRunControllerAndReturnsToFloorChoice()
+        {
+            RunController controller = null;
+            yield return LoadGameScene(result => controller = result);
+            EncounterView encounter = Object.FindAnyObjectByType<EncounterView>();
+
+            controller.ChooseFloor(4);
+            yield return WaitForPhase(controller, RunPhase.Encounter);
+
+            int energyBefore = controller.CurrentView.Energy;
+            int integrityBefore = controller.CurrentView.Integrity;
+            int scrapBefore = controller.CurrentView.Scrap;
+            encounter.SelectOption(1);
+
+            Assert.That(controller.CurrentView.Phase, Is.EqualTo(RunPhase.ChoosingFloor));
+            Assert.That(controller.CurrentView.CurrentEncounter, Is.Null);
+            Assert.That(GetCandidateFloors(controller.CurrentView), Is.EqualTo(new[] { 5, 6, 7 }));
+            Assert.That(
+                controller.CurrentView.Energy != energyBefore ||
+                controller.CurrentView.Integrity != integrityBefore ||
+                controller.CurrentView.Scrap != scrapBefore,
+                Is.True);
+        }
+
         private static IEnumerator LoadGameScene(System.Action<RunController> setController)
         {
             yield return SceneManager.LoadSceneAsync(GameScenes.Game, LoadSceneMode.Single);
@@ -166,17 +201,17 @@ namespace LastElevator.Tests.PlayMode
             setController(controller);
         }
 
-        private static IEnumerator WaitForChoosingFloor(RunController controller)
+        private static IEnumerator WaitForPhase(RunController controller, RunPhase expectedPhase)
         {
             float timeout = Time.realtimeSinceStartup + PhaseChangeTimeoutSeconds;
 
-            while (controller.CurrentView.Phase != RunPhase.ChoosingFloor &&
+            while (controller.CurrentView.Phase != expectedPhase &&
                    Time.realtimeSinceStartup < timeout)
             {
                 yield return null;
             }
 
-            Assert.That(controller.CurrentView.Phase, Is.EqualTo(RunPhase.ChoosingFloor));
+            Assert.That(controller.CurrentView.Phase, Is.EqualTo(expectedPhase));
         }
 
         private static int[] GetCandidateFloors(RunViewModel view)

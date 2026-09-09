@@ -1,0 +1,40 @@
+%YAML 1.1
+%TAG !u! tag:unity3d.com,2011:
+--- !u!114 &11400000
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 0}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: d0500000000000000000000000000006, type: 3}
+  m_Name: event_battery_room
+  m_EditorClassIdentifier: LastElevator.Runtime::LastElevator.Gameplay.Encounters.EncounterDefinition
+  id: event_battery_room
+  title: Battery Room
+  body: Emergency cells pulse behind a cracked safety panel. There is time to take only one thing.
+  illustration: {fileID: 0}
+  category: 2
+  clueText: Power surge
+  weight: 10
+  minFloor: 1
+  maxFloor: 30
+  choices:
+  - label: RECHARGE CELLS  (+12 ENERGY)
+    conditions: []
+    successEffects:
+    - type: 1
+      intValue: 12
+      stringValue:
+    failureEffects: []
+    successChance: 1
+  - label: STRIP COPPER  (+6 SCRAP)
+    conditions: []
+    successEffects:
+    - type: 3
+      intValue: 6
+      stringValue:
+    failureEffects: []
+    successChance: 1

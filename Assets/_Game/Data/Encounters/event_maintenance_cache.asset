@@ -1,0 +1,40 @@
+%YAML 1.1
+%TAG !u! tag:unity3d.com,2011:
+--- !u!114 &11400000
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 0}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: d0500000000000000000000000000006, type: 3}
+  m_Name: event_maintenance_cache
+  m_EditorClassIdentifier: LastElevator.Runtime::LastElevator.Gameplay.Encounters.EncounterDefinition
+  id: event_maintenance_cache
+  title: Maintenance Cache
+  body: A service locker holds sealant and untouched machine parts. Both are too heavy to carry together.
+  illustration: {fileID: 0}
+  category: 2
+  clueText: Service beacon
+  weight: 10
+  minFloor: 1
+  maxFloor: 30
+  choices:
+  - label: PATCH THE LIFT  (+15 INTEGRITY)
+    conditions: []
+    successEffects:
+    - type: 2
+      intValue: 15
+      stringValue:
+    failureEffects: []
+    successChance: 1
+  - label: TAKE COMPONENTS  (+8 SCRAP)
+    conditions: []
+    successEffects:
+    - type: 3
+      intValue: 8
+      stringValue:
+    failureEffects: []
+    successChance: 1

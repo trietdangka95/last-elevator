@@ -55,6 +55,12 @@ namespace LastElevator.UI.FloorChoice
                 return;
             }
 
+            if (CurrentView.Phase != RunPhase.ChoosingFloor &&
+                CurrentView.Phase != RunPhase.Travelling)
+            {
+                return;
+            }
+
             EnsureStyles();
 
             float margin = Screen.width * 0.04f;

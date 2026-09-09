@@ -1,3 +1,4 @@
+using System;
 using LastElevator.Gameplay.Encounters;
 using LastElevator.Gameplay.Floor;
 using UnityEngine;
@@ -15,7 +16,12 @@ namespace LastElevator.UI.FloorChoice
 
         internal static string GetCardText(FloorCandidate candidate)
         {
-            return $"FLOOR {candidate.TargetFloor:00}\n{GetSignalText(candidate.SignalCategory)}\n" +
+            string signalText = candidate.Encounter != null &&
+                                !string.IsNullOrWhiteSpace(candidate.Encounter.clueText)
+                ? candidate.Encounter.clueText.ToUpperInvariant()
+                : GetSignalText(candidate.SignalCategory);
+
+            return $"FLOOR {candidate.TargetFloor:00}\n{signalText}\n" +
                    $"{GetDangerText(candidate.SignalCategory)}\n-{candidate.EnergyCost} ENERGY\nGO";
         }
 
