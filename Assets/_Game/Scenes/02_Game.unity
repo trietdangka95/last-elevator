@@ -44,6 +44,8 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: d001d01d001d01d001d01d001d01d001, type: 3}
   m_Name:
   m_EditorClassIdentifier: LastElevator.Runtime::LastElevator.Gameplay.Run.RunController
+  _balanceConfig: {fileID: 11400000, guid: f9a26ae4e7db45e59ecc9a710944f11e, type: 2}
+  _travelDurationSeconds: 0.65
 --- !u!1 &2000
 GameObject:
   m_ObjectHideFlags: 0
