@@ -194,6 +194,66 @@ namespace LastElevator.Tests.EditMode
         }
 
         [Test]
+        public void AssignsFloorEligibleEncounterMatchingGeneratedSignal()
+        {
+            var onlyResource = new EncounterCategoryWeights(0, 1, 0, 0, 0);
+            var config = new FloorGenerationConfig
+            {
+                early = onlyResource,
+                mid = onlyResource,
+                late = onlyResource
+            };
+            EncounterDefinition available = CreateEncounter(
+                "event_available_resource",
+                EncounterCategory.Resource,
+                1,
+                9);
+            EncounterDefinition outOfRange = CreateEncounter(
+                "event_late_resource",
+                EncounterCategory.Resource,
+                20,
+                29);
+            RunState state = RunRules.CreateInitialState(818);
+            state.currentFloor = 4;
+
+            var generator = new FloorGenerator(
+                new SeededRandomService(state.seed),
+                config,
+                new[] { available, outOfRange });
+            IReadOnlyList<FloorCandidate> candidates = generator.GenerateCandidates(state);
+
+            Assert.That(candidates[0].Encounter, Is.SameAs(available));
+            Assert.That(candidates[1].Encounter, Is.SameAs(available));
+            Assert.That(candidates[2].Encounter, Is.SameAs(available));
+
+            UnityEngine.Object.DestroyImmediate(available);
+            UnityEngine.Object.DestroyImmediate(outOfRange);
+        }
+
+        [Test]
+        public void FallsBackToFloorEligiblePlaceholderWhenSignalHasNoCategoryMatch()
+        {
+            EncounterDefinition placeholder = CreateEncounter(
+                "event_placeholder",
+                EncounterCategory.Resource,
+                1,
+                30);
+            RunState state = RunRules.CreateInitialState(828);
+            state.currentFloor = 9;
+            var generator = new FloorGenerator(
+                new SeededRandomService(state.seed),
+                new FloorGenerationConfig(),
+                new[] { placeholder });
+
+            FloorCandidate checkpoint = generator.GenerateCandidates(state)[0];
+
+            Assert.That(checkpoint.SignalCategory, Is.EqualTo(EncounterCategory.Checkpoint));
+            Assert.That(checkpoint.Encounter, Is.SameAs(placeholder));
+
+            UnityEngine.Object.DestroyImmediate(placeholder);
+        }
+
+        [Test]
         public void FinalFloorHasNoFurtherCandidates()
         {
             RunState state = RunRules.CreateInitialState(909);
@@ -218,6 +278,21 @@ namespace LastElevator.Tests.EditMode
         private static FloorGenerator CreateGenerator(int seed)
         {
             return new FloorGenerator(new SeededRandomService(seed), new FloorGenerationConfig());
+        }
+
+        private static EncounterDefinition CreateEncounter(
+            string id,
+            EncounterCategory category,
+            int minFloor,
+            int maxFloor)
+        {
+            EncounterDefinition encounter = UnityEngine.ScriptableObject.CreateInstance<EncounterDefinition>();
+            encounter.id = id;
+            encounter.category = category;
+            encounter.minFloor = minFloor;
+            encounter.maxFloor = maxFloor;
+            encounter.weight = 10;
+            return encounter;
         }
 
         private static int[] GetFloorNumbers(IReadOnlyList<FloorCandidate> candidates)

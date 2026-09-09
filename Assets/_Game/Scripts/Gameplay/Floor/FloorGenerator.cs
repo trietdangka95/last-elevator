@@ -17,13 +17,23 @@ namespace LastElevator.Gameplay.Floor
         private const int MaximumCandidateDistance = 3;
 
         private readonly FloorGenerationConfig _config;
+        private readonly IReadOnlyList<EncounterDefinition> _encounters;
         private readonly IRandomService _random;
         private readonly IReadOnlyList<EncounterCategory> _regularCategories;
 
         public FloorGenerator(IRandomService random, FloorGenerationConfig config)
+            : this(random, config, null)
+        {
+        }
+
+        public FloorGenerator(
+            IRandomService random,
+            FloorGenerationConfig config,
+            IReadOnlyList<EncounterDefinition> encounters)
         {
             _random = random ?? throw new ArgumentNullException(nameof(random));
             _config = config ?? throw new ArgumentNullException(nameof(config));
+            _encounters = encounters;
             _regularCategories = new[]
             {
                 EncounterCategory.Survivor,
@@ -59,6 +69,9 @@ namespace LastElevator.Gameplay.Floor
                 GetNextMandatoryFloor(state.currentFloor));
             var candidates = new List<FloorCandidate>(MaximumCandidateDistance);
             var unusedCategories = new List<EncounterCategory>(_regularCategories);
+            var unusedEncounters = _encounters == null
+                ? null
+                : new List<EncounterDefinition>(_encounters);
 
             for (int targetFloor = state.currentFloor + 1; targetFloor <= lastCandidateFloor; targetFloor++)
             {
@@ -72,11 +85,91 @@ namespace LastElevator.Gameplay.Floor
                 int energyCost = RunRules.GetTravelEnergyCost(state, distance);
                 FloorBand band = GetBand(targetFloor);
                 EncounterCategory category = GetSignalCategory(band, unusedCategories);
+                EncounterDefinition encounter = GetEncounter(category, targetFloor, unusedEncounters);
 
-                candidates.Add(new FloorCandidate(targetFloor, distance, energyCost, band, category));
+                candidates.Add(new FloorCandidate(
+                    targetFloor,
+                    distance,
+                    energyCost,
+                    band,
+                    category,
+                    encounter));
             }
 
             return candidates.AsReadOnly();
+        }
+
+        private EncounterDefinition GetEncounter(
+            EncounterCategory category,
+            int floor,
+            List<EncounterDefinition> unusedEncounters)
+        {
+            if (_encounters == null)
+            {
+                return null;
+            }
+
+            List<EncounterDefinition> eligible = GetEligibleEncounters(
+                unusedEncounters,
+                floor,
+                category,
+                true);
+
+            if (eligible.Count == 0)
+            {
+                eligible = GetEligibleEncounters(unusedEncounters, floor, category, false);
+            }
+
+            if (eligible.Count == 0)
+            {
+                eligible = GetEligibleEncounters(_encounters, floor, category, true);
+            }
+
+            if (eligible.Count == 0)
+            {
+                eligible = GetEligibleEncounters(_encounters, floor, category, false);
+            }
+
+            if (eligible.Count == 0)
+            {
+                throw new InvalidOperationException($"No encounter is available for floor {floor}.");
+            }
+
+            EncounterDefinition selected = _random.PickWeighted(eligible, definition => definition.weight);
+            unusedEncounters.Remove(selected);
+            return selected;
+        }
+
+        private static List<EncounterDefinition> GetEligibleEncounters(
+            IReadOnlyList<EncounterDefinition> encounters,
+            int floor,
+            EncounterCategory category,
+            bool requireCategoryMatch)
+        {
+            var eligible = new List<EncounterDefinition>();
+
+            if (encounters == null)
+            {
+                return eligible;
+            }
+
+            for (int i = 0; i < encounters.Count; i++)
+            {
+                EncounterDefinition encounter = encounters[i];
+
+                if (encounter == null || encounter.weight <= 0 ||
+                    floor < encounter.minFloor || floor > encounter.maxFloor)
+                {
+                    continue;
+                }
+
+                if (!requireCategoryMatch || encounter.category == category)
+                {
+                    eligible.Add(encounter);
+                }
+            }
+
+            return eligible;
         }
 
         public static FloorBand GetBand(int floor)

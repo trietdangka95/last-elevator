@@ -9,13 +9,15 @@ namespace LastElevator.Gameplay.Floor
             int distance,
             int energyCost,
             FloorBand band,
-            EncounterCategory signalCategory)
+            EncounterCategory signalCategory,
+            EncounterDefinition encounter = null)
         {
             TargetFloor = targetFloor;
             Distance = distance;
             EnergyCost = energyCost;
             Band = band;
             SignalCategory = signalCategory;
+            Encounter = encounter;
         }
 
         public int TargetFloor { get; }
@@ -27,6 +29,8 @@ namespace LastElevator.Gameplay.Floor
         public FloorBand Band { get; }
 
         public EncounterCategory SignalCategory { get; }
+
+        public EncounterDefinition Encounter { get; }
 
         public bool IsMandatory =>
             Band == FloorBand.CheckpointA ||
