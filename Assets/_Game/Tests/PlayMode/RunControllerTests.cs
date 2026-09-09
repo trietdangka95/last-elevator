@@ -3,6 +3,9 @@ using System.Collections.Generic;
 using LastElevator.Core.Bootstrap;
 using LastElevator.Gameplay.Floor;
 using LastElevator.Gameplay.Run;
+using LastElevator.UI.Common;
+using LastElevator.UI.FloorChoice;
+using LastElevator.UI.HUD;
 using NUnit.Framework;
 using UnityEngine;
 using UnityEngine.SceneManagement;
@@ -99,6 +102,7 @@ namespace LastElevator.Tests.PlayMode
         {
             RunController controller = null;
             yield return LoadGameScene(result => controller = result);
+            FloorChoiceView floorChoice = Object.FindAnyObjectByType<FloorChoiceView>();
 
             int moves = 0;
 
@@ -107,7 +111,7 @@ namespace LastElevator.Tests.PlayMode
                 IReadOnlyList<FloorCandidate> candidates = controller.CurrentView.FloorCandidates;
                 Assert.That(candidates, Is.Not.Empty);
 
-                controller.ChooseFloor(candidates[candidates.Count - 1].TargetFloor);
+                floorChoice.SelectFloor(candidates[candidates.Count - 1].TargetFloor);
                 yield return WaitForChoosingFloor(controller);
 
                 moves++;
@@ -117,6 +121,38 @@ namespace LastElevator.Tests.PlayMode
             Assert.That(controller.CurrentView.CurrentFloor, Is.EqualTo(30));
             Assert.That(controller.CurrentView.Energy, Is.EqualTo(17));
             Assert.That(controller.CurrentView.FloorCandidates, Is.Empty);
+        }
+
+        [UnityTest]
+        public IEnumerator GameSceneContainsConnectedHudAndFloorChoiceViews()
+        {
+            RunController controller = null;
+            yield return LoadGameScene(result => controller = result);
+
+            RunHudView hud = Object.FindAnyObjectByType<RunHudView>();
+            FloorChoiceView floorChoice = Object.FindAnyObjectByType<FloorChoiceView>();
+            ElevatorTravelView travel = Object.FindAnyObjectByType<ElevatorTravelView>();
+
+            Assert.That(hud, Is.Not.Null);
+            Assert.That(floorChoice, Is.Not.Null);
+            Assert.That(travel, Is.Not.Null);
+            Assert.That(hud.CurrentView, Is.SameAs(controller.CurrentView));
+            Assert.That(floorChoice.CurrentView, Is.SameAs(controller.CurrentView));
+            Assert.That(travel.CurrentView, Is.SameAs(controller.CurrentView));
+        }
+
+        [UnityTest]
+        public IEnumerator FloorChoiceViewSendsSelectionThroughRunController()
+        {
+            RunController controller = null;
+            yield return LoadGameScene(result => controller = result);
+            FloorChoiceView floorChoice = Object.FindAnyObjectByType<FloorChoiceView>();
+
+            floorChoice.SelectFloor(4);
+
+            Assert.That(controller.CurrentView.Energy, Is.EqualTo(69));
+            Assert.That(controller.CurrentView.Phase, Is.EqualTo(RunPhase.Travelling));
+            Assert.That(floorChoice.CurrentView, Is.SameAs(controller.CurrentView));
         }
 
         private static IEnumerator LoadGameScene(System.Action<RunController> setController)

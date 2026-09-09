@@ -112,9 +112,14 @@ namespace LastElevator.Gameplay.Run
 
         private FloorGenerationConfig GetFloorGenerationConfig()
         {
-            if (_balanceConfig == null || _balanceConfig.floorGeneration == null)
+            if (_balanceConfig == null)
             {
-                return new FloorGenerationConfig();
+                throw new InvalidOperationException("RunController requires a BalanceConfig reference.");
+            }
+
+            if (_balanceConfig.floorGeneration == null)
+            {
+                throw new InvalidOperationException("BalanceConfig requires floor generation settings.");
             }
 
             return _balanceConfig.floorGeneration;
